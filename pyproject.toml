@@ -4,3 +4,7 @@ version = "0.1.0"
 description = "Agente conversacional multiagente que gera regras na DSL GOBR (Govendas) usando RAG"
 # TODO: confirmar a versão mínima do Python depois de definir as dependências
 requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
