@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from gobr_agent.parsing import (
+    interpretar_filtros_temporais,
     interpretar_frequencia,
     interpretar_preferencia,
     parse_file,
@@ -216,13 +217,18 @@ def test_aspa_solta_e_removida_com_aviso():
     assert arq.parametros[0].preferencia.reconhecida
 
 
-def test_restricoes_ficam_como_texto_bruto_sem_aviso():
+def test_filtros_temporais_soltos_sem_aviso_e_sem_virar_preferencia():
     arq = parse_text(
-        BASE + 'parametros "A":\n    do time("t")\n    na segunda\n    a partir do dia 16\n    frequencia de 7 dias\n'
+        BASE + 'parametros "A":\n    do time("t")\n    a partir do dia 16\n    na segunda\n    frequencia de 7 dias\n'
     )
     p = arq.parametros[0]
-    assert [r.texto for r in p.restricoes] == ["na segunda", "a partir do dia 16"]
-    assert "linha não reconhecida" not in mensagens(arq.avisos)
+    assert [(f.categoria, f.bruta) for f in p.filtros_temporais] == [
+        ("dia_do_mes", "a partir do dia 16"),
+        ("dia_da_semana", "na segunda"),
+    ]
+    assert [f.linha for f in p.filtros_temporais] == [8, 9]
+    assert p.preferencia is None and p.depende_do_calendario
+    assert arq.avisos == []
 
 
 def test_linha_desconhecida_vira_aviso():
@@ -419,6 +425,222 @@ def test_manual_exemplo_8_2_alerta_fica_como_bloco_bruto():
     assert any("alerta/tags" in m for m in mensagens(arq.avisos))
 
 
+# ----------------------------------- filtros temporais (manual, cap. 5, tabelas 5.2 a 5.6)
+# As strings abaixo foram copiadas das tabelas do manual (govendas-rules.pdf, pp. 22-25).
+
+TODOS_OS_DIAS = ("seg", "ter", "qua", "qui", "sex", "sab", "dom")
+
+
+def um_filtro(texto):
+    filtros = interpretar_filtros_temporais(texto)
+    assert filtros is not None and len(filtros) == 1, texto
+    return filtros[0]
+
+
+@pytest.mark.parametrize(
+    "texto, forma, inicio, fim",
+    [
+        ("no dia 10", "no_dia", 10, 10),
+        ("no ultimo dia do mês", "ultimo_dia", "ultimo", "ultimo"),
+        ("antes do dia 20", "antes_do_dia", 1, 19),  # "Apenas entre os dias 1 e 19 do mês"
+        ("depois do dia 15", "depois_do_dia", 16, "ultimo"),  # "entre os dias 16 e o último dia do mês"
+        ("a partir do dia 12", "a_partir_do_dia", 12, "ultimo"),
+        ("entre os dias 12 e 30", "entre_os_dias", 12, 30),
+    ],
+)
+def test_manual_5_2_dia_do_mes(texto, forma, inicio, fim):
+    f = um_filtro(texto)
+    assert f.categoria == "dia_do_mes"
+    assert f.valor == {"forma": forma, "inicio": inicio, "fim": fim}
+
+
+@pytest.mark.parametrize(
+    "texto, dias",
+    [
+        ("na segunda", ("seg",)),
+        ("na terça", ("ter",)),
+        ("na quarta", ("qua",)),
+        ("na quinta", ("qui",)),
+        ("na sexta", ("sex",)),
+        ("no sabado", ("sab",)),
+        ("no domingo", ("dom",)),
+        ("todos os dias", TODOS_OS_DIAS),
+        ("nos dias uteis", ("seg", "ter", "qua", "qui", "sex")),
+        ("no fim de semana", ("sab", "dom")),
+    ],
+)
+def test_manual_5_3_dia_da_semana(texto, dias):
+    f = um_filtro(texto)
+    assert (f.categoria, f.valor) == ("dia_da_semana", dias)
+
+
+@pytest.mark.parametrize(
+    "texto, categoria, valor",
+    [
+        ("na primeira semana", "semana_do_mes", 1),
+        ("na segunda semana", "semana_do_mes", 2),
+        ("na terceira semana", "semana_do_mes", 3),
+        ("na quarta semana", "semana_do_mes", 4),
+        ("na ultima semana", "semana_do_mes", "ultima"),
+        ("na primeira quinzena", "quinzena", 1),
+        ("na segunda quinzena", "quinzena", 2),
+    ],
+)
+def test_manual_5_4_semana_e_quinzena(texto, categoria, valor):
+    f = um_filtro(texto)  # `na segunda semana` não pode virar `na segunda` + resto
+    assert (f.categoria, f.valor) == (categoria, valor)
+
+
+@pytest.mark.parametrize(
+    "texto, meses",
+    [
+        ("em janeiro", (1,)),
+        ("em fevereiro", (2,)),
+        ("em março", (3,)),
+        ("em dezembro", (12,)),
+        ("no primeiro bimestre", (1, 2)),
+        ("no segundo bimestre", (3, 4)),
+        ("no terceiro bimestre", (5, 6)),
+        ("no quarto bimestre", (7, 8)),
+        ("no quinto bimestre", (9, 10)),
+        ("no sexto bimestre", (11, 12)),
+        ("no primeiro trimestre", (1, 2, 3)),
+        ("no segundo trimestre", (4, 5, 6)),
+        ("no terceiro trimestre", (7, 8, 9)),
+        ("no quarto trimestre", (10, 11, 12)),
+        ("no primeiro semestre", (1, 2, 3, 4, 5, 6)),
+        ("no segundo semestre", (7, 8, 9, 10, 11, 12)),
+    ],
+)
+def test_manual_5_5_mes_do_ano(texto, meses):
+    f = um_filtro(texto)
+    assert (f.categoria, f.valor) == ("mes_do_ano", meses)
+
+
+@pytest.mark.parametrize(
+    "texto, valor",
+    [
+        ("às '15:00'", {"forma": "as", "horarios": ("15:00",), "inicio": None, "fim": None}),
+        ("de hora em hora", {"forma": "de_hora_em_hora", "horarios": (), "inicio": None, "fim": None}),
+        ("de hora em hora entre '08:00' e '18:00'", {"forma": "de_hora_em_hora", "horarios": (), "inicio": "08:00", "fim": "18:00"}),
+        ("de hora em hora a partir de '07:00'", {"forma": "de_hora_em_hora", "horarios": (), "inicio": "07:00", "fim": None}),
+    ],
+)
+def test_manual_5_6_horario(texto, valor):
+    f = um_filtro(texto)
+    assert (f.categoria, f.valor) == ("horario", valor)
+
+
+def test_manual_5_6_varios_horarios_especificos():
+    filtros = interpretar_filtros_temporais("às '15:00' e às '16:30'")
+    assert [(f.categoria, f.valor["horarios"]) for f in filtros] == [("horario", ("15:00",)), ("horario", ("16:30",))]
+
+
+def test_filtros_combinados_na_mesma_linha_nao_quebram_no_e_interno():
+    filtros = interpretar_filtros_temporais("entre os dias 12 e 30 e na segunda e na primeira quinzena")
+    assert [f.categoria for f in filtros] == ["dia_do_mes", "dia_da_semana", "quinzena"]
+    assert filtros[0].valor["fim"] == 30
+    filtros = interpretar_filtros_temporais("nos dias uteis e de hora em hora a partir de '07:00'")  # manual 5.1
+    assert [f.categoria for f in filtros] == ["dia_da_semana", "horario"]
+
+
+def test_filtro_desconhecido_devolve_none():
+    assert interpretar_filtros_temporais("na proxima semana") is None
+    assert interpretar_filtros_temporais("na segunda e na proxima semana") is None
+    assert interpretar_filtros_temporais("adimplentes") is None
+
+
+def test_manual_5_1_filtros_em_varias_linhas_com_e_no_fim():
+    texto = BASE + (
+        'parametros "filtros":\n'
+        'da carteira("televendas")\n'
+        "no dia 2 e no dia 12 e\n"
+        "no domingo e na segunda e\n"
+        "na primeira semana e\n"
+        "no segundo semestre\n"
+        "frequencia semanal()\n"
+    )
+    arq = parse_text(texto)
+    p = arq.parametros[0]
+    assert [f.categoria for f in p.filtros_temporais] == [
+        "dia_do_mes", "dia_do_mes", "dia_da_semana", "dia_da_semana", "semana_do_mes", "mes_do_ano",
+    ]  # fmt: skip
+    assert [f.valor for f in p.filtros_temporais][4:] == [1, (7, 8, 9, 10, 11, 12)]
+    assert p.depende_do_calendario
+    assert arq.avisos == [] and arq.erros == []
+
+
+def test_manual_7_3_7_nos_dias_uteis_nao_e_preferencia():
+    texto = BASE + (
+        'parametros "semanal dias uteis":\n'
+        'da carteira("carteira fixa")\n'
+        "nos dias úteis\n"
+        "quando inatividade de 90 dias\n"
+        "frequencia semanal()\n"
+        "preferencia na segunda e na terça\n"
+    )
+    p = parse_text(texto).parametros[0]
+    assert [(f.categoria, f.valor) for f in p.filtros_temporais] == [("dia_da_semana", ("seg", "ter", "qua", "qui", "sex"))]
+    assert p.preferencia.dias == {"seg": 2, "ter": 2, "qua": 0, "qui": 0, "sex": 0, "sab": 0, "dom": 0}
+
+
+def test_fora_da_ordem_canonica_e_aviso_nao_erro():
+    arq = parse_text(
+        BASE + 'parametros "A":\n    do time("t")\n    na segunda\n    no dia 2\n    frequencia de 7 dias\n'
+    )
+    assert arq.erros == []
+    assert mensagens(arq.avisos) == ["filtros temporais fora da ordem canônica"]
+    assert arq.avisos[0].linha == 9
+    assert [f.categoria for f in arq.parametros[0].filtros_temporais] == ["dia_da_semana", "dia_do_mes"]
+    em_ordem = parse_text(BASE + 'parametros "B":\n    do time("t")\n    no dia 2 e na segunda e em maio\n    frequencia de 7 dias\n')
+    assert em_ordem.avisos == []
+
+
+def test_horario_em_parametros_gera_aviso():
+    arq = parse_text(BASE + 'parametros "A":\n    do time("t")\n    de hora em hora\n    frequencia de 7 dias\n')
+    assert mensagens(arq.avisos) == ["filtro de horário em parametros (só vale para alertas)"]
+
+
+def test_filtro_desconhecido_no_bloco_vira_linha_nao_reconhecida():
+    arq = parse_text(BASE + 'parametros "A":\n    do time("t")\n    na proxima semana\n    frequencia de 7 dias\n')
+    assert mensagens(arq.avisos) == ["linha não reconhecida"]
+    assert not arq.parametros[0].depende_do_calendario
+
+
+def test_sem_filtro_nao_depende_do_calendario():
+    p = parse_text(BASE + 'parametros "A":\n    do time("t")\n    frequencia de 7 dias\n').parametros[0]
+    assert p.filtros_temporais == () and not p.depende_do_calendario
+
+
+def test_filtros_temporais_dos_11_casos_reais():
+    esperado = {
+        "regra_128.gobr": {
+            linha: ("dia_do_mes", {"forma": "a_partir_do_dia", "inicio": 16, "fim": "ultimo"})
+            for linha in (88, 112, 136, 160, 184, 208)
+        },
+        "regra_151.gobr": {23: ("semana_do_mes", "ultima")},
+        "regra_168.gobr": {
+            86: ("dia_da_semana", ("seg",)),
+            95: ("dia_da_semana", ("ter",)),
+            103: ("dia_da_semana", ("qua",)),
+            111: ("dia_da_semana", ("qui",)),
+        },
+    }
+    for nome, filtros in esperado.items():
+        arq = carregar(nome)
+        obtidos = {f.linha: (f.categoria, f.valor) for p in arq.parametros for f in p.filtros_temporais}
+        assert obtidos == filtros, nome
+        assert sum(p.depende_do_calendario for p in arq.parametros) == len(filtros), nome
+        assert arq.avisos == [] and arq.erros == [], nome
+    # em regra_168 o dia do filtro e o dia da preferência coincidem, mas são campos separados
+    arq = carregar("regra_168.gobr")
+    por_linha = {p.linha_ini: p for p in arq.parametros}
+    for linha, dia in ((84, "seg"), (93, "ter"), (101, "qua"), (109, "qui")):
+        bloco = por_linha[linha]
+        assert bloco.preferencia.dias[dia] == 3 and sum(bloco.preferencia.dias.values()) == 3
+        assert bloco.frequencia.periodo == "diaria" and bloco.roteirizavel and bloco.fixo
+
+
 # ------------------------------------------------------------------ todos os arquivos de data/gobr
 
 ARQUIVOS = sorted(DATA.glob("*.gobr")) if DATA.exists() else []
@@ -445,11 +667,13 @@ def test_todos_os_arquivos_sem_excecao_e_com_todos_os_blocos(capsys):
             obtido = sum(1 for b in arq.blocos if b.rotulo == rotulo)
             assert obtido == esperado, f"{caminho.name}: {rotulo} {obtido} != {esperado}"
 
-    com_restricoes = {n: sum(len(p.restricoes) for p in a.parametros) for n, a in resultados.items()}
-    com_restricoes = {n: k for n, k in com_restricoes.items() if k}
+    com_filtros = {n: sum(len(p.filtros_temporais) for p in a.parametros) for n, a in resultados.items()}
+    com_filtros = {n: k for n, k in com_filtros.items() if k}
+    blocos_calendario = sum(p.depende_do_calendario for a in resultados.values() for p in a.parametros)
     nao_reconhecidas = {n: sum(len(b.nao_reconhecidas) for b in a.blocos) for n, a in resultados.items()}
     nao_reconhecidas = {n: k for n, k in nao_reconhecidas.items() if k}
     with capsys.disabled():
-        print(f"\n[{len(resultados)} arquivos] restricoes: {len(com_restricoes)} arquivos, {sum(com_restricoes.values())} linhas")
+        print(f"\n[{len(resultados)} arquivos] filtros temporais: {len(com_filtros)} arquivos, {sum(com_filtros.values())} filtros, {blocos_calendario} blocos dependem do calendário")
         print(f"[{len(resultados)} arquivos] linhas não reconhecidas: {len(nao_reconhecidas)} arquivos, {sum(nao_reconhecidas.values())} linhas")
         print(f"[{len(resultados)} arquivos] com erro: {sum(1 for a in resultados.values() if a.erros)} arquivos")
+    assert nao_reconhecidas == {}, nao_reconhecidas

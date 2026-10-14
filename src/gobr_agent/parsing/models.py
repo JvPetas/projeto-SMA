@@ -45,11 +45,28 @@ class SemChoque:
 
 
 @dataclass(frozen=True)
-class Restricao:
-    """Linha solta como `na segunda` ou `a partir do dia 16`, guardada como texto bruto."""
+class FiltroTemporal:
+    """Filtro do capítulo 5 do manual (`na segunda`, `a partir do dia 16`, `na ultima semana`...).
 
-    texto: str
-    linha: int
+    Dizem QUANDO a regra roda (data/hora de execução). Não confundir com `preferencia`
+    (em que dia agendar) nem com o `restrito` da seção 7.5.
+
+    Combinação (manual 5.1): filtros da mesma categoria valem como "ou" (`no dia 2 e no dia 12`
+    = dia 2 ou dia 12) e categorias diferentes como "e". O parser só registra os filtros.
+
+    `bruta` é o texto do filtro já normalizado (sem acentos, minúsculas). `valor` por categoria:
+      dia_do_mes     {"forma", "inicio", "fim"}; inicio/fim são int ou "ultimo" (último dia do mês)
+      dia_da_semana  tuple de "seg".."dom"
+      semana_do_mes  1..4 ou "ultima"
+      quinzena       1 ou 2
+      mes_do_ano     tuple de meses 1..12 (bimestre, trimestre e semestre já expandidos)
+      horario        {"forma": "as" | "de_hora_em_hora", "horarios": tuple, "inicio": str|None, "fim": str|None}
+    """
+
+    categoria: str
+    bruta: str
+    valor: object
+    linha: int = 0
 
 
 @dataclass(frozen=True)
@@ -148,12 +165,17 @@ class Parametros(Bloco):
     roteirizavel: bool = False
     nao_agendar: bool = False
     sem_choque: tuple[SemChoque, ...] = ()
-    restricoes: tuple[Restricao, ...] = ()
+    filtros_temporais: tuple[FiltroTemporal, ...] = ()
 
     @property
     def catch_all(self) -> bool:
         """Sem `quando`: pega os clientes restantes do seu escopo."""
         return not self.quando
+
+    @property
+    def depende_do_calendario(self) -> bool:
+        """A regra só roda em certas datas ou horários (tem algum filtro temporal)."""
+        return bool(self.filtros_temporais)
 
     @property
     def rotulo(self) -> str:

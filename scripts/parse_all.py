@@ -1,7 +1,7 @@
 """Roda o parser em todos os .gobr de uma pasta e resume o resultado (somente leitura).
 
 Imprime: blocos por tipo; avisos e erros agrupados por mensagem; formas de frequencia e
-preferencia não reconhecidas; e as linhas que não viraram cláusula (restricoes e não reconhecidas).
+preferencia não reconhecidas; os filtros temporais; e as linhas não reconhecidas.
 
 Uso: python scripts/parse_all.py [--dir data/gobr] [--exemplos 3]
 """
@@ -60,12 +60,18 @@ def main() -> int:
         for forma, locais in sorted(formas.items(), key=lambda kv: -len(kv[1])):
             print(f"    {len(locais):>4}  {forma}   [{locais[0]}]")
 
-    print("\n== Linhas que não viraram cláusula")
-    restricoes = [(a.caminho, r) for a in arquivos for p in a.parametros for r in p.restricoes]
+    print("\n== Filtros temporais e linhas não reconhecidas")
+    filtros = [(a.caminho, p, f) for a in arquivos for p in a.parametros for f in p.filtros_temporais]
+    blocos_calendario = [(a.caminho, p) for a in arquivos for p in a.parametros if p.depende_do_calendario]
+    print(
+        f"  filtros temporais: {len(filtros)} em {len(blocos_calendario)} blocos "
+        f"(depende_do_calendario) de {len({c for c, _ in blocos_calendario})} arquivos"
+    )
+    for categoria, n in Counter(f.categoria for _, _, f in filtros).most_common():
+        print(f"    {n:>4}  {categoria}")
+    for forma, n in Counter(assinatura(f.bruta) for _, _, f in filtros).most_common(8):
+        print(f"    {n:>4}    {forma}")
     nao_rec = [(a.caminho, b, l) for a in arquivos for b in a.blocos for l in b.nao_reconhecidas]
-    print(f"  restricoes: {len(restricoes)} linhas em {len({c for c, _ in restricoes})} arquivos")
-    for forma, n in Counter(assinatura(r.texto.lower()) for _, r in restricoes).most_common(8):
-        print(f"    {n:>4}  {forma}")
     print(f"  não reconhecidas: {len(nao_rec)} linhas em {len({c for c, _, _ in nao_rec})} arquivos")
     return 0
 

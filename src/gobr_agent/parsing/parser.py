@@ -20,13 +20,13 @@ from .models import (
     Carteira,
     Condicao,
     Escopo,
+    FiltroTemporal,
     Frequencia,
     ItemPreferencia,
     LimparParametros,
     Parametros,
     Preferencia,
     Problema,
-    Restricao,
     Segmentacao,
     SemChoque,
     Time,
@@ -170,12 +170,88 @@ def interpretar_preferencia(texto: str) -> Preferencia:
     return replace(primaria, bruta=t, alternativas=alternativas)
 
 
+# -------------------------------------------------------------- filtros temporais (cap. 5)
+
+_FIM = r"(?= e |$)"  # o filtro termina no fim do texto ou antes do conector ` e `
+_MESES = {
+    "janeiro": 1, "fevereiro": 2, "marco": 3, "abril": 4, "maio": 5, "junho": 6,
+    "julho": 7, "agosto": 8, "setembro": 9, "outubro": 10, "novembro": 11, "dezembro": 12,
+}  # fmt: skip
+_ORDINAL_F = {"primeira": 1, "segunda": 2, "terceira": 3, "quarta": 4}
+_ORDINAL_M = {"primeiro": 1, "segundo": 2, "terceiro": 3, "quarto": 4, "quinto": 5, "sexto": 6}
+_HORA = r"['\"](\d{1,2}:\d{2})['\"]"
+_DIAS_SEMANA = "segunda|terca|quarta|quinta|sexta|sabado|domingo"
+
+
+def _dia_do_mes(forma: str, inicio, fim) -> dict:
+    return {"forma": forma, "inicio": inicio, "fim": fim}
+
+
+def _horario(forma: str, horarios=(), inicio=None, fim=None) -> dict:
+    return {"forma": forma, "horarios": tuple(horarios), "inicio": inicio, "fim": fim}
+
+
+# (categoria, regex, função que monta o `valor`). Da forma mais específica para a mais geral.
+_FILTROS = [
+    (cat, re.compile(rx + _FIM), valor)
+    for cat, rx, valor in [
+        ("dia_do_mes", r"no dia (\d+)", lambda m: _dia_do_mes("no_dia", int(m[1]), int(m[1]))),
+        ("dia_do_mes", r"no ultimo dia do mes", lambda m: _dia_do_mes("ultimo_dia", "ultimo", "ultimo")),
+        ("dia_do_mes", r"antes do dia (\d+)", lambda m: _dia_do_mes("antes_do_dia", 1, int(m[1]) - 1)),
+        ("dia_do_mes", r"depois do dia (\d+)", lambda m: _dia_do_mes("depois_do_dia", int(m[1]) + 1, "ultimo")),
+        ("dia_do_mes", r"a partir do dia (\d+)", lambda m: _dia_do_mes("a_partir_do_dia", int(m[1]), "ultimo")),
+        ("dia_do_mes", r"entre os dias (\d+) e (\d+)", lambda m: _dia_do_mes("entre_os_dias", int(m[1]), int(m[2]))),
+        ("dia_da_semana", r"todos os dias", lambda m: _ORDEM_DIAS),
+        ("dia_da_semana", r"nos dias uteis", lambda m: _UTEIS),
+        ("dia_da_semana", r"no fim de semana", lambda m: ("sab", "dom")),
+        ("dia_da_semana", rf"(?:na|no) ({_DIAS_SEMANA})", lambda m: (_DIAS_ABREV[m[1]],)),
+        ("semana_do_mes", r"na (primeira|segunda|terceira|quarta) semana", lambda m: _ORDINAL_F[m[1]]),
+        ("semana_do_mes", r"na ultima semana", lambda m: "ultima"),
+        ("quinzena", r"na (primeira|segunda) quinzena", lambda m: _ORDINAL_F[m[1]]),
+        ("mes_do_ano", rf"em ({'|'.join(_MESES)})", lambda m: (_MESES[m[1]],)),
+        ("mes_do_ano", r"no (primeiro|segundo|terceiro|quarto|quinto|sexto) bimestre",
+         lambda m: tuple(range(2 * _ORDINAL_M[m[1]] - 1, 2 * _ORDINAL_M[m[1]] + 1))),
+        ("mes_do_ano", r"no (primeiro|segundo|terceiro|quarto) trimestre",
+         lambda m: tuple(range(3 * _ORDINAL_M[m[1]] - 2, 3 * _ORDINAL_M[m[1]] + 1))),
+        ("mes_do_ano", r"no (primeiro|segundo) semestre",
+         lambda m: tuple(range(6 * _ORDINAL_M[m[1]] - 5, 6 * _ORDINAL_M[m[1]] + 1))),
+        ("horario", rf"as {_HORA}", lambda m: _horario("as", [m[1]])),
+        ("horario", rf"de hora em hora entre {_HORA} e {_HORA}", lambda m: _horario("de_hora_em_hora", inicio=m[1], fim=m[2])),
+        ("horario", rf"de hora em hora a partir de {_HORA}", lambda m: _horario("de_hora_em_hora", inicio=m[1])),
+        ("horario", r"de hora em hora", lambda m: _horario("de_hora_em_hora")),
+    ]
+]  # fmt: skip
+
+# Ordem em que o manual (5.1) manda escrever os filtros; semana do mês e quinzena ficam no mesmo nível.
+_ORDEM_CANONICA = {"dia_do_mes": 0, "dia_da_semana": 1, "semana_do_mes": 2, "quinzena": 2, "mes_do_ano": 3, "horario": 4}
+
+
+def interpretar_filtros_temporais(texto: str, linha: int = 0) -> tuple[FiltroTemporal, ...] | None:
+    """Interpreta uma linha de filtros temporais (um ou vários, ligados por `e`).
+
+    Um `e` na ponta (`no domingo e na segunda e`) é só o conector para a linha seguinte.
+    Devolve None se qualquer parte do texto não for um filtro conhecido.
+    """
+    resto = re.sub(r" e$", "", re.sub(r"^e ", "", normalizar(texto)))
+    filtros = []
+    while resto:
+        for categoria, regex, valor in _FILTROS:
+            if m := regex.match(resto):
+                break
+        else:
+            return None
+        filtros.append(FiltroTemporal(categoria, m.group(0), valor(m), linha))
+        resto = resto[m.end() :]
+        if resto.startswith(" e "):
+            resto = resto[3:]
+    return tuple(filtros) or None
+
+
 # ------------------------------------------------------------------------------ estrutura
 
 _RE_ESCOPO = re.compile(r"(e )?(do time|da carteira|da segmentacao)\(")
 _TIPO_ESCOPO = {"do time": "time", "da carteira": "carteira", "da segmentacao": "segmentacao"}
 _RE_SEM_CHOQUE = re.compile(r"sem choque (?:no|na|na rota com) (time|carteira)\(")
-_RE_RESTRICAO = re.compile(r"(na|no|nos|a partir|ate) ")
 _PALAVRAS_BLOCO = {"time", "segmentacao", "carteira", "parametros", "alerta", "tags"}
 _INICIOS_CONTINUACAO = ('"', "'", ")", ",")
 
@@ -310,7 +386,7 @@ def _nao_reconhecida(logica: _Logica, ctx: _Ctx, acumulador: list[tuple[int, str
 def _parametros(seg: _Segmento, ctx: _Ctx, ordem: int) -> Parametros:
     erros_antes = len(ctx.arq.erros)
     nome = _nome(seg, ctx)
-    escopos, quando, sem_choque, restricoes, nao_rec = [], [], [], [], []
+    escopos, quando, sem_choque, filtros_temporais, nao_rec = [], [], [], [], []
     freq_partes: list[str] | None = None
     pref_partes: list[str] | None = None
     freq_linha = pref_linha = 0
@@ -353,8 +429,8 @@ def _parametros(seg: _Segmento, ctx: _Ctx, ordem: int) -> Parametros:
             not any(pref_partes) or primeira in ("e", "ou", "maior", "normal", "menor")
         ):
             pref_partes.append(_sem_aspa_solta(logica, ctx))
-        elif _RE_RESTRICAO.match(n):
-            restricoes.append(Restricao(logica.bruta, logica.linha))
+        elif (filtros := interpretar_filtros_temporais(n, logica.linha)) is not None:
+            filtros_temporais.extend(filtros)
             clausula = None
         else:
             _nao_reconhecida(logica, ctx, nao_rec)
@@ -369,6 +445,15 @@ def _parametros(seg: _Segmento, ctx: _Ctx, ordem: int) -> Parametros:
         preferencia = interpretar_preferencia(" ".join(pref_partes))
         if not preferencia.reconhecida:
             ctx.aviso(pref_linha, "preferência não reconhecida", preferencia.bruta)
+    maior_nivel = -1
+    for filtro in filtros_temporais:
+        nivel = _ORDEM_CANONICA[filtro.categoria]
+        if nivel < maior_nivel:
+            ctx.aviso(filtro.linha, "filtros temporais fora da ordem canônica", " > ".join(f.categoria for f in filtros_temporais))
+            break
+        maior_nivel = max(maior_nivel, nivel)
+    if any(f.categoria == "horario" for f in filtros_temporais):
+        ctx.aviso(seg.linha, "filtro de horário em parametros (só vale para alertas)", nome)
     if nao_agendar and (frequencia or preferencia):
         ctx.aviso(seg.linha, "nao agendar combinado com frequência/preferência", nome)
     if not nao_agendar and frequencia is None:
@@ -388,7 +473,7 @@ def _parametros(seg: _Segmento, ctx: _Ctx, ordem: int) -> Parametros:
         roteirizavel=roteirizavel,
         nao_agendar=nao_agendar,
         sem_choque=tuple(sem_choque),
-        restricoes=tuple(restricoes),
+        filtros_temporais=tuple(filtros_temporais),
     )
 
 

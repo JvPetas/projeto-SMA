@@ -1,8 +1,8 @@
-"""Mostra um .gobr parseado de forma compacta, ou os blocos com `restricoes` (somente leitura).
+"""Mostra um .gobr parseado de forma compacta, ou os blocos com filtros temporais (somente leitura).
 
 Uso:
   python scripts/show_parsed.py ARQUIVO            # nome em data/gobr (com ou sem .gobr) ou caminho
-  python scripts/show_parsed.py --restricoes       # blocos com restricoes de toda a pasta, com o texto original
+  python scripts/show_parsed.py --filtros          # blocos com filtros temporais da pasta, com o texto original
 """
 import argparse
 import sys
@@ -78,6 +78,10 @@ def fmt_flags(p: Parametros) -> str:
     return " ".join(flags) or "-"
 
 
+def fmt_filtros(p: Parametros) -> str:
+    return " & ".join(f"{f.categoria}:{f.bruta}" for f in p.filtros_temporais) or "-"
+
+
 def mostrar_bloco(b, indice: int) -> None:
     cab = f"[{indice:>3}] {b.rotulo:<17} \"{b.nome}\"  (linhas {b.linha_ini}-{b.linha_fim})"
     print(cab + ("  ** INCOMPLETO **" if b.incompleto else ""))
@@ -85,7 +89,7 @@ def mostrar_bloco(b, indice: int) -> None:
         print(f"      ordem={b.ordem}  escopos: {fmt_escopos(b.escopos)}  catch_all={'sim' if b.catch_all else 'nao'}")
         print(f"      quando: {fmt_quando(b.quando)}")
         print(f"      frequencia: {fmt_frequencia(b.frequencia)}  | preferencia: {fmt_preferencia(b.preferencia)}")
-        print(f"      flags: {fmt_flags(b)}  | restricoes: {[r.texto for r in b.restricoes] or '-'}")
+        print(f"      flags: {fmt_flags(b)}  | filtros temporais: {fmt_filtros(b)}  | calendario={'sim' if b.depende_do_calendario else 'nao'}")
     elif isinstance(b, LimparParametros):
         print(f"      ordem={b.ordem}  escopos: {fmt_escopos(b.escopos)}")
     elif isinstance(b, Time):
@@ -110,39 +114,39 @@ def mostrar_arquivo(caminho: Path) -> None:
             print(f"    linha {p.linha}: {p.mensagem}  {p.trecho}")
 
 
-def mostrar_restricoes(pasta: Path) -> None:
+def mostrar_filtros(pasta: Path) -> None:
     total = 0
     for arq in parse_dir(pasta):
         linhas = (pasta / arq.caminho).read_text(encoding="utf-8-sig").splitlines()
         for p in arq.parametros:
-            if not p.restricoes:
+            if not p.filtros_temporais:
                 continue
-            total += len(p.restricoes)
-            marcadas = {r.linha for r in p.restricoes}
+            total += len(p.filtros_temporais)
+            marcadas = {f.linha for f in p.filtros_temporais}
             print(f"\n##### {arq.caminho}  bloco #{p.ordem} \"{p.nome}\"  linhas {p.linha_ini}-{p.linha_fim}")
             for n in range(p.linha_ini, p.linha_fim + 1):
-                marca = ">> RESTRICAO" if n in marcadas else "            "
+                marca = ">> FILTRO" if n in marcadas else "         "
                 print(f"{marca} {n:>4}| {linhas[n - 1]}")
             print(f"     lido como: escopos={fmt_escopos(p.escopos)} | quando={fmt_quando(p.quando)}")
             print(f"                frequencia={fmt_frequencia(p.frequencia)} | preferencia={fmt_preferencia(p.preferencia)}")
-            print(f"                flags={fmt_flags(p)} | restricoes={[r.texto for r in p.restricoes]}")
-    print(f"\ntotal de linhas em restricoes: {total}")
+            print(f"                flags={fmt_flags(p)} | filtros={[(f.categoria, f.valor) for f in p.filtros_temporais]}")
+    print(f"\ntotal de filtros temporais: {total}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("arquivo", nargs="?")
     parser.add_argument("--dir", default="data/gobr")
-    parser.add_argument("--restricoes", action="store_true")
+    parser.add_argument("--filtros", action="store_true")
     args = parser.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
 
     pasta = Path(args.dir)
-    if args.restricoes:
-        mostrar_restricoes(pasta)
+    if args.filtros:
+        mostrar_filtros(pasta)
         return 0
     if not args.arquivo:
-        parser.error("informe um arquivo ou use --restricoes")
+        parser.error("informe um arquivo ou use --filtros")
     caminho = Path(args.arquivo)
     if not caminho.exists():
         caminho = pasta / (args.arquivo if args.arquivo.endswith(".gobr") else args.arquivo + ".gobr")
