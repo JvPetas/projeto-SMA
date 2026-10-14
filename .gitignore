@@ -26,8 +26,12 @@ data/vectorstore/*
 !data/vectorstore/.gitkeep
 *.lance
 .cache/
+data/processed/*
+!data/processed/.gitkeep
+data/pairs.json
 
 # Dados brutos (professor/clientes). Bloco separado para eu poder remover.
+infos/
 data/gobr/*
 !data/gobr/.gitkeep
 data/imagens/*
@@ -40,3 +44,4 @@ data/manual/*
 Thumbs.db
 .idea/
 .vscode/
+
