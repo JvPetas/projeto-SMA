@@ -1,0 +1,42 @@
+# ferramentas locais de assistente de código
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Segredos
+.env
+.env.*
+!.env.example
+
+# Índices e caches
+data/vectorstore/*
+!data/vectorstore/.gitkeep
+*.lance
+.cache/
+
+# Dados brutos (professor/clientes). Bloco separado para eu poder remover.
+data/gobr/*
+!data/gobr/.gitkeep
+data/imagens/*
+!data/imagens/.gitkeep
+data/manual/*
+!data/manual/.gitkeep
+
+# SO e editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
