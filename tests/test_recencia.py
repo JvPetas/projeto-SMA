@@ -80,6 +80,8 @@ def test_texto_dos_intervalos_so_com_entre_e_mais_de():
         ("recencia de visita em 10 dias", "visita", "", ((0, 10),)),
         ("recencia de visita entre 4 dias e 3000 dias", "visita", "", ((4, 3000),)),
         ("fora da recencia de visita global em 5 dias", "visita", "", ((5, INF),)),
+        ("recencia de positivacao global entre 0 dia e 30 dias", "positivacao", "global", ((0, 30),)),  # regra_114:37
+        ("recencia de visita em 1 dia", "visita", "", ((0, 1),)),
     ],
 )
 def test_interpretar_atomo(texto, cadeia, subtipo, intervalo):

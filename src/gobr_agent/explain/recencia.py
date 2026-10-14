@@ -91,7 +91,7 @@ def texto_intervalos(a: Intervalos) -> str:
 
 _RE_RECENCIA = re.compile(
     r"(?P<fora>fora da )?recencia de (?P<tipo>positivacao|visita)(?: (?P<qual>global|do vendedor))? "
-    r"(?:em (?P<n>\d+) dias|entre (?P<a>\d+) dias e (?P<b>\d+) dias)"
+    r"(?:em (?P<n>\d+) dias?|entre (?P<a>\d+) dias? e (?P<b>\d+) dias?)"
 )
 
 
