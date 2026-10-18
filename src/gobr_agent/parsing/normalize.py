@@ -3,8 +3,13 @@ from __future__ import annotations
 
 import re
 import unicodedata
+import warnings
 
 _ENTRE_ASPAS = re.compile(r'("[^"]*")')
+
+
+def remover_controles(texto: str) -> str:
+    return "".join(c for c in texto if unicodedata.category(c) != "Cc" or c in "\t\n\r")
 
 
 def sem_acentos(texto: str) -> str:
@@ -19,7 +24,10 @@ def normalizar(texto: str) -> str:
     para que `do time ("x")` e `porid ("1", "2")` fiquem iguais a `do time("x")` e
     `porid("1","2")`.
     """
-    partes = _ENTRE_ASPAS.split(sem_acentos(texto).lower())
+    limpo = remover_controles(texto)
+    if limpo != texto:
+        warnings.warn("caracteres de controle removidos", UserWarning, stacklevel=2)
+    partes = _ENTRE_ASPAS.split(sem_acentos(limpo).lower())
     for i, parte in enumerate(partes):
         parte = re.sub(r"\s+", " ", parte)
         if i % 2 == 0:

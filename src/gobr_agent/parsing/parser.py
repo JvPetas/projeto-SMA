@@ -31,7 +31,7 @@ from .models import (
     SemChoque,
     Time,
 )
-from .normalize import assinatura, balanco_parenteses, normalizar, tem_aspa_solta
+from .normalize import assinatura, balanco_parenteses, normalizar, remover_controles, tem_aspa_solta
 
 # --------------------------------------------------------------------------- frequência
 
@@ -634,6 +634,10 @@ def _parse(texto: str, arq: ArquivoGobr) -> None:
 
 def parse_text(texto: str, caminho: str = "<texto>") -> ArquivoGobr:
     arq = ArquivoGobr(caminho=caminho)
+    for linha, bruta in enumerate(texto.split("\n"), 1):
+        if remover_controles(bruta) != bruta:
+            arq.avisos.append(Problema(caminho, linha, "caracteres de controle removidos", repr(bruta)[:120]))
+    texto = remover_controles(texto)
     try:
         _parse(texto, arq)
     except Exception as exc:
