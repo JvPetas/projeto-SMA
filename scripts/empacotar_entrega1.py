@@ -139,9 +139,8 @@ def verificar_zip(caminho: Path, esperados: set[str]) -> dict:
             bruto = z.read(nome)
             if any(termo in bruto.lower() or termo in nome.encode("utf-8").lower() for termo in TERMOS_PROIBIDOS):
                 falhas.append(f"termo proibido: {nome}")
-            if p.parts[0] in {"explicacoes", "explicacoes_polidas"} and p.suffix == ".md":
-                if p.parts[0] == "explicacoes":
-                    explicacoes.add(p.name)
+            if p.parts[0] == "explicacoes" and p.suffix == ".md":
+                explicacoes.add(p.name)
                 if CABECALHO not in bruto.decode("utf-8").splitlines():
                     falhas.append(f"cabeçalho de tabela ausente: {nome}")
         if explicacoes != esperados:
@@ -170,11 +169,6 @@ def empacotar(raiz: Path, *, modelo: Path | None = None) -> dict:
     modelo = Path(modelo) if modelo else raiz / "docs/entrega1_README.template.md"
     modelo_texto = modelo.read_text(encoding="utf-8")
     contexto = fontes_readme(raiz) if any(m in modelo_texto for m in ("{python_requer}", "{exemplo_gold}")) else {}
-    contexto["tem_polimento"] = (processado / "explicacoes_polidas").is_dir()
-    relatorio_polimento = processado / "explicacoes_polidas/index.json"
-    if contexto["tem_polimento"] and relatorio_polimento.is_file():
-        contexto.update(dados_readme(json.loads(relatorio_polimento.read_text(encoding="utf-8"))))
-        contexto["tem_polimento"] = True
     notas_gabarito = processado / "notas_gabarito.md"
     contexto["notas_gabarito"] = (
         notas_gabarito.read_text(encoding="utf-8").strip() if notas_gabarito.is_file() else ""
@@ -196,11 +190,6 @@ def empacotar(raiz: Path, *, modelo: Path | None = None) -> dict:
         for nome in sorted(esperados):
             copiar(explicacoes / nome, Path("explicacoes") / nome)
         copiar(processado / "explicacoes_consolidado.md", Path("explicacoes_consolidado.md"))
-        if contexto["tem_polimento"]:
-            for p in sorted((processado / "explicacoes_polidas").glob("*.md")):
-                copiar(p, Path("explicacoes_polidas") / p.name)
-            if (processado / "polimento_diff.md").is_file():
-                copiar(processado / "polimento_diff.md", Path("polimento_diff.md"))
         (stage / "README.md").write_text(readme, encoding="utf-8")
         pacote = raiz / "src/gobr_agent"
         if not pacote.is_dir():

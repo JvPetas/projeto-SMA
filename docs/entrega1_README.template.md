@@ -6,9 +6,6 @@ Autor: João Vitor Fernandes Ferreira · Disciplina SMA (INF0373A_BSI)
 - `explicacoes/`: um arquivo Markdown para cada arquivo .gobr ({n_arquivos} arquivos), com uma tabela Nome | Condição | Frequência | Observação por regra, no formato dos exemplos do professor.
 - `explicacoes_consolidado.md`: todas as explicações em um só arquivo, com sumário.
 - `codigo/`: código do gerador, para leitura.
-<!-- IF tem_polimento -->
-- `explicacoes_polidas/`: as mesmas explicações com a redação de Condição e Observação reescrita por modelo de linguagem, sob validação (ver abaixo), e `polimento_diff.md`, com cada alteração antes e depois.
-<!-- ENDIF -->
 
 ## Como as explicações foram geradas
 A base da geração é determinística, para garantir fidelidade ao código:
@@ -16,16 +13,6 @@ A base da geração é determinística, para garantir fidelidade ao código:
 2. Cada condição é decomposta em átomos e traduzida por um glossário com fonte no manual (PDF e página). Condição que o manual não define mantém o texto original, com aviso.
 3. As faixas de recência são calculadas pela ordem dos blocos: "recência em 90 dias" logo depois de "em 60 dias" significa, na prática, "entre 60 e 90 dias".
 4. Há uma linha por bloco `parametros`, na ordem do código. Regras `nao agendar` são linhas próprias com Frequência "Não agendar".
-<!-- IF tem_polimento -->
-
-## Polimento da redação (controlado)
-Sobre o esqueleto determinístico, um modelo de linguagem ({modelo_polimento}) reescreve apenas as colunas Condição e Observação em linguagem de negócio mais natural. O modelo não escreve do zero nem decide significado:
-- Nome e Frequência não passam pelo modelo; os avisos ⚠ são copiados literalmente; os textos entre aspas das condições são trocados por marcadores antes do envio e restaurados depois.
-- Cada reescrita é validada automaticamente: mesmos números, mesmos marcadores de relação (até, entre, mais de, fora, sem, exceto, não), mesmos qualificadores, vocabulário limitado ao do projeto, sem palavras de borda. Um segundo passo do modelo verifica a equivalência de sentido.
-- A reescrita que falha em qualquer validação é descartada, e fica o texto determinístico.
-- Resultado: {n_polidas} de {n_linhas_polidaveis} linhas reescritas; {n_fallback} mantiveram o texto determinístico.
-- Entregamos as duas versões: `explicacoes/` (determinística) e `explicacoes_polidas/`.
-<!-- ENDIF -->
 
 ## Como ler a tabela
 - "Todos os clientes do escopo" / "Demais clientes do escopo": bloco sem condição; recebe os clientes não tratados pelas regras anteriores.
@@ -45,6 +32,10 @@ Explicação gerada para um dos exemplos do professor:
 - {n_sem_entrada} blocos têm condição sem definição no manual; o texto original é mantido com aviso.
 - Arquivos com problema de sintaxe têm aviso no topo: parêntese aberto e bloco sem frequência em um arquivo (a tabela pode estar incompleta), `version 1.0` ausente, aspa solta e caractere de controle em outros.
 - A tabela descreve os blocos do código; requisitos exclusivos da descrição humana não criam linhas adicionais.
+
+## Decisões de projeto
+
+Reescrita por modelo de linguagem: avaliamos reescrever a coluna Condição com um modelo de linguagem sob validação automática (números, relações, qualificadores, acentos, parênteses e verificação independente). Na primeira iteração, 7 de 20 linhas dos exemplos de referência foram alteradas e todas pioraram o texto: todas removeram os parênteses que marcam o escopo e uma também perdeu um acento. Na segunda iteração, com os validadores corrigidos, 1 de 20 foi aceita, com mudança apenas de maiúscula, e 15 foram rejeitadas pelo verificador independente (os validadores determinísticos não rejeitaram nenhuma). Por isso a entrega mantém somente o texto determinístico, que não depende de modelo e é reproduzível.
 
 <!-- IF notas_gabarito -->
 ## Divergências entre a descrição e o código nos exemplos de referência

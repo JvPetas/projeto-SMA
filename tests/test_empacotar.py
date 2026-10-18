@@ -32,8 +32,8 @@ def preparar(tmp_path):
     docs.mkdir()
     (docs / "entrega1_README.template.md").write_text(
         "# Entrega\n{n_arquivos} arquivos; {n_sem_venda} sem venda; {n_falhas} falhas.\n"
-        "{marcador_futuro}\n<!-- IF polimento -->\n## Revisão\n"
-        "{modelo_polimento}: {n_polidas} / {n_fallback}\n<!-- ENDIF -->\n", encoding="utf-8")
+        "{marcador_futuro}\n<!-- IF notas_gabarito -->\n## Notas\n"
+        "{notas_gabarito}\n<!-- ENDIF -->\n", encoding="utf-8")
     return raiz, fontes
 
 
@@ -48,7 +48,7 @@ def test_pacote_tres_origens_com_duplicado_e_exclusoes(tmp_path, capsys):
     assert all(resultado["checagens"].values())
     assert resultado["tamanho_bytes"] == Path(resultado["zip"]).stat().st_size
     assert "3 arquivos; 3 sem venda; 0 falhas." in resultado["readme"]
-    assert "{marcador_futuro}" in resultado["readme"] and "## Revisão" not in resultado["readme"]
+    assert "{marcador_futuro}" in resultado["readme"] and "## Notas" not in resultado["readme"]
     with zipfile.ZipFile(resultado["zip"]) as z:
         assert {n for n in z.namelist() if n.startswith("explicacoes/")} == {
             "explicacoes/primeiro.md", "explicacoes/copia.md", "explicacoes/terceiro.md"}
@@ -113,15 +113,15 @@ def test_verificador_inspeciona_todos_os_membros_do_zip(tmp_path, nome):
 
 
 def test_modelo_tolerante_condicionais_e_contadores_sem_numeros_fixos():
-    modelo = "{n_arquivos}; {futuro}\n<!-- IF polimento -->{modelo_polimento}: {n_polidas}, {n_fallback}<!-- ENDIF -->"
+    modelo = "{n_arquivos}; {futuro}\n<!-- IF revisao -->{responsavel}: {n_itens}, {n_pendentes}<!-- ENDIF -->"
     index = {"resumo": {"arquivos": 8}}
     assert pacote.preencher_readme(modelo, index) == "8; {futuro}\n"
-    index["polimento"] = {"modelo_polimento": "revisao", "n_polidas": 7}
+    index["revisao"] = {"responsavel": "revisao", "n_itens": 7}
     assert pacote.preencher_readme(modelo, index) == "8; {futuro}\n"
-    index["polimento"]["n_fallback"] = 0
+    index["revisao"]["n_pendentes"] = 0
     assert pacote.preencher_readme(modelo, index) == "8; {futuro}\nrevisao: 7, 0"
     assert pacote.preencher_readme("<!-- IF ausente -->não entra<!-- ENDIF -->", {}) == ""
-    assert pacote.preencher_readme("{n_polidas} / {n_fallback}", {}) == "{n_polidas} / {n_fallback}"
+    assert pacote.preencher_readme("{futuro} / {outro}", {}) == "{futuro} / {outro}"
     index["resumo"].update(blocos_por_aviso={"glossario_INFERIDA": 6, "fora_entre": 3,
                                           "glossario_SEM_ENTRADA": 4},
                             blocos_sem_definicao=5, falhas_por_checagem={"frequencia": 2, "linhas": 1})
@@ -155,30 +155,6 @@ def test_fontes_readme_segue_ordem_pares_extrai_so_tabela_e_e_idempotente(tmp_pa
     assert "Requer Python >=3.12" in a["readme"] and a["readme"].count("## Exemplo") == 1
     assert "⚠ aviso:" not in a["readme"] and "fora da tabela" not in a["readme"]
     assert pacote.CABECALHO in a["readme"] and "provavelmente nunca compraram" in a["readme"]
-
-
-def test_condicional_polimento_depende_da_pasta_e_varredura_inclui_diff(tmp_path):
-    raiz, _ = preparar(tmp_path)
-    modelo = raiz / "docs/entrega1_README.template.md"
-    modelo.write_text("<!-- IF tem_polimento -->versão polida<!-- ENDIF -->\n"
-                      "<!-- IF tem_polimento -->{modelo_polimento}: {n_polidas} de {n_linhas_polidaveis}; {n_fallback}<!-- ENDIF -->", encoding="utf-8")
-    assert "versão polida" not in pacote.empacotar(raiz)["readme"]
-    polidas = raiz / "data/processed/explicacoes_polidas"
-    polidas.mkdir()
-    (polidas / "terceiro.md").write_text(pacote.CABECALHO + "\n|---|---|---|---|\n", encoding="utf-8")
-    (polidas / "index.json").write_text(json.dumps({"polimento": {"modelo_polimento": "teste",
-        "n_polidas": 0, "n_linhas_polidaveis": 1, "n_fallback": 1}}), encoding="utf-8")
-    diff = raiz / "data/processed/polimento_diff.md"
-    diff.write_text("# Alterações", encoding="utf-8")
-    r = pacote.empacotar(raiz)
-    assert "versão polida" in r["readme"] and "teste: 0 de 1; 1" in r["readme"]
-    assert "explicacoes_polidas/terceiro.md" in r["membros"] and "polimento_diff.md" in r["membros"]
-    for p in (diff, polidas / "terceiro.md"):
-        antes = p.read_bytes()
-        p.write_bytes(antes + pacote.TERMOS_PROIBIDOS[0])
-        with pytest.raises(ValueError, match="termo proibido"):
-            pacote.empacotar(raiz)
-        p.write_bytes(antes)
 
 
 @pytest.mark.parametrize("conteudo", [None, " \n\t", "- Divergência de referência sintética.\n\n- Segundo item."])
