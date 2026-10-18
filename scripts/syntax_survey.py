@@ -79,7 +79,7 @@ def main() -> int:
     print("(a) Palavra que inicia linha (sem comentários/brancos): ocorrências / arquivos")
     for word, n in first_words.most_common():
         bare = word.split("] ", 1)[1]
-        mark = "" if word.startswith("[recuado]") or bare in KNOWN else "   <-- FORA da lista do CLAUDE.md"
+        mark = "" if word.startswith("[recuado]") or bare in KNOWN else "   <-- FORA da lista de palavras-chave conhecidas"
         print(f"  {word:<36} {n:>6} / {len(first_word_files[word]):>3}{mark}")
     print("\n(b) Variações: ocorrências / arquivos")
     for name, (n, fs) in variants.items():
