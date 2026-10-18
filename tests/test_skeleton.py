@@ -188,6 +188,8 @@ def test_glossario_consolidado_sem_venda_rota_ramo_e_alias():
     for atomo in ("sem venda", "sem vendas", "sem venda do vendedor", "sem venda da empresa"):
         t = traduzir_atomo(atomo)
         assert t.status == INFERIDA and "⚠" in t.observacao and "inferida" in t.observacao
+        assert t.observacao == "⚠ interpretação inferida de `sem venda ou prospects` (manual p.26 [22]) e dos nomes dos blocos; não confirmada"
+        assert t.texto.startswith("Clientes sem venda") and "(provavelmente nunca compraram)" in t.texto
     for atomo in ("e o cliente filial",):
         assert traduzir_atomo(normalizar(atomo)).status == ALIAS
     assert traduzir_atomo(normalizar("é o cliente filial")).status == ALIAS
@@ -249,6 +251,20 @@ def test_preferencia_pesos_e_ausencia(tmp_path):
     a, b = gerar_esqueleto(p).linhas
     assert "preferência" not in a.frequencia
     assert "segunda (peso 3), terça (peso 2), sexta (peso 1)" in b.frequencia
+
+
+def test_catch_all_todos_ou_demais_por_escopo_e_com_recencia(tmp_path):
+    texto = regra("Outro escopo", "inadimplentes", frequencia=None, escopo="outro")
+    texto += regra("Primeiro") + regra("Segundo")
+    a, b, c = gerar_esqueleto(escrever(tmp_path, texto)).linhas
+    assert b.condicao == "Todos os clientes do escopo"
+    assert c.condicao == "Demais clientes do escopo"
+    assert NOTA_BLOQUEIOS not in b.observacao
+    texto = regra("Bloqueio", "inadimplentes", frequencia=None) + regra("Demais")
+    l = gerar_esqueleto(escrever(tmp_path, texto)).linhas[-1]
+    assert l.condicao == "Demais clientes do escopo" and NOTA_BLOQUEIOS in l.observacao
+    texto = regra("Recentes", "recencia de positivacao em 60 dias") + regra("Restantes")
+    assert gerar_esqueleto(escrever(tmp_path, texto)).linhas[-1].condicao == "Demais clientes do escopo com recência acima de 60 dias"
 
 
 def test_antecedentes_truncados_so_na_tabela(tmp_path):

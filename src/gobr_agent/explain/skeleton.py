@@ -155,9 +155,9 @@ def _literal_recencia(texto: str) -> str | None:
     return f"última {evento} entre {numeros[0]} e {numeros[1]} dias" + _sufixo(a.historia)
 
 
-def _condicao(p: Parametros, info: InfoRecencia, traducoes) -> str:
+def _condicao(p: Parametros, info: InfoRecencia, traducoes, tem_anteriores: bool) -> str:
     if not p.quando:
-        texto = "Demais clientes do escopo"
+        texto = "Demais clientes do escopo" if tem_anteriores else "Todos os clientes do escopo"
         if info.texto_catch_all:
             texto += " com recência acima de " + info.texto_catch_all.removeprefix("mais de ")
     elif info.puro and not info.fora_entre and info.historia and (info.efetivo or info.intervalo):
@@ -232,7 +232,9 @@ def gerar_esqueleto(caminho: str | Path) -> Esqueleto:
         esqueleto.avisos.append(Aviso("parser", problema.linha, problema.mensagem))
     for problema in arq.erros:
         esqueleto.avisos.append(Aviso("erro_parser", problema.linha, problema.mensagem))
+    escopos_anteriores = set()
     for p in arq.parametros:
+        escopo = chave_do_grupo(p, mapa)
         info = infos[p.linha_ini]
         traducoes = [traduzir_condicao(c) for c in p.quando]
         observacoes = []
@@ -275,9 +277,10 @@ def gerar_esqueleto(caminho: str | Path) -> Esqueleto:
         frequencia = "Não agendar" if p.nao_agendar else _frequencia(p.frequencia)
         if p.preferencia is not None:
             frequencia += "; preferência: " + _preferencia(p.preferencia)
-        esqueleto.linhas.append(Linha(p.nome, _condicao(p, info, traducoes), frequencia,
-                                     "; ".join(observacoes), p.linha_ini, chave_do_grupo(p, mapa),
+        esqueleto.linhas.append(Linha(p.nome, _condicao(p, info, traducoes, escopo in escopos_anteriores), frequencia,
+                                     "; ".join(observacoes), p.linha_ini, escopo,
                                      info.antecedentes, info))
+        escopos_anteriores.add(escopo)
     for bloco in arq.blocos:
         if isinstance(bloco, BlocoBruto) and bloco.tipo in ("alerta", "tags"):
             esqueleto.extras.append({"tipo": bloco.tipo, "nome": bloco.nome, "linha": bloco.linha_ini, "linhas": bloco.linhas})

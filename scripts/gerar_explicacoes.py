@@ -302,6 +302,10 @@ def gerar_lote(entrada: Path, saida: Path, *, pares: Path | None, pasta_gold: Pa
             checks, arq, n_linhas, atributos = verificar(p, texto)
             registro.update(n_blocos=len(arq.parametros), n_blocos_total=len(arq.blocos), n_linhas=n_linhas,
                             avisos_por_tipo=dict(Counter(a.tipo for a in e.avisos)),
+                            blocos_por_aviso={tipo: len({a.linha for a in e.avisos if a.tipo == tipo})
+                                              for tipo in sorted({a.tipo for a in e.avisos})},
+                            n_blocos_sem_definicao=len({a.linha for a in e.avisos if a.tipo in
+                                                       {"glossario_SEM_ENTRADA", "glossario_SEM_DEFINICAO"}}),
                             nivel_diagnostico=e.cabecalho["nivel_diagnostico"], checagens=checks,
                             ramo_atividade_texto=bool(atributos), atomos_ramo_texto=atributos)
             registro["falhas"] = [{"checagem": k, "detalhes": v} for k, v in checks.items() if v["ok"] is False]
@@ -323,16 +327,19 @@ def gerar_lote(entrada: Path, saida: Path, *, pares: Path | None, pasta_gold: Pa
             except OSError as escrita:
                 registro["falhas"].append({"checagem": "escrita", "mensagem": f"{type(escrita).__name__}: {escrita}"})
         registros.append(registro)
-    avisos = Counter()
+    avisos, blocos_por_aviso = Counter(), Counter()
     falhas = Counter({k: 0 for k in ("linhas_parametros", "frequencia", "numeros_condicao", "ramo_texto", "sem_excecao")})
     for r in registros:
         avisos.update(r["avisos_por_tipo"])
+        blocos_por_aviso.update(r.get("blocos_por_aviso", {}))
         falhas.update(x["checagem"] for x in r["falhas"])
     index = {"versao": 1, "fonte_gold": fonte, "gold": gold_presentes, "arquivos": registros,
              "para_indexar": [r["arquivo"] for r in registros if r["indexar"]],
              "resumo": {"arquivos": len(registros), "conteudos_distintos": len(canonicos),
                         "arquivos_com_falhas": sum(bool(r["falhas"]) for r in registros),
-                        "falhas_por_checagem": dict(falhas), "avisos_por_tipo": dict(avisos)},
+                        "falhas_por_checagem": dict(falhas), "avisos_por_tipo": dict(avisos),
+                        "blocos_por_aviso": dict(blocos_por_aviso),
+                        "blocos_sem_definicao": sum(r.get("n_blocos_sem_definicao", 0) for r in registros)},
              "exemplos": _escolher_exemplos(esqueletos, registros)}
     (saida / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     consolidado = Path(consolidado) if consolidado else saida.parent / "explicacoes_consolidado.md"

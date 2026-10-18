@@ -99,10 +99,10 @@ CASOS = [
     ("cadastrado a partir do dia '2023-07-18'", "regra_147:26", "cadastrado a partir do dia 'N-N-N'", DEFINIDA, "clientes cadastrados no ERP após o dia 2023-07-18"),
     ("data da rota na semana", "regra_173:26", "data da rota na semana", SEM_DEFINICAO, "data da rota na semana"),
     # sem definição no manual: o literal sai sem expandir
-    ("sem venda", "regra_001:21", "sem venda", INFERIDA, "clientes que ainda não compraram"),
-    ("sem vendas", "regra_023:23", "sem vendas", INFERIDA, "clientes que ainda não compraram"),
-    ("sem venda do vendedor", "regra_140:58", "sem venda do vendedor", INFERIDA, "clientes que ainda não compraram com o vendedor"),
-    ("sem venda da empresa", "regra_226:14", "sem venda da empresa", INFERIDA, "clientes que ainda não compraram com a empresa"),
+    ("sem venda", "regra_001:21", "sem venda", INFERIDA, "Clientes sem venda (provavelmente nunca compraram)"),
+    ("sem vendas", "regra_023:23", "sem vendas", INFERIDA, "Clientes sem venda (provavelmente nunca compraram)"),
+    ("sem venda do vendedor", "regra_140:58", "sem venda do vendedor", INFERIDA, "Clientes sem venda com o vendedor (provavelmente nunca compraram)"),
+    ("sem venda da empresa", "regra_226:14", "sem venda da empresa", INFERIDA, "Clientes sem venda com a empresa (provavelmente nunca compraram)"),
     # alias
     ("e o cliente filial", "regra_116:17", "e o cliente filial", ALIAS, "o registro é uma filial"),
     ("inatividade global de 90 dias", "manual PDF26/22", "inatividade global de N dias", DEFINIDA, "clientes sem compra com a empresa toda há pelo menos 90 dias"),

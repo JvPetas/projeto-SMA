@@ -28,7 +28,7 @@ DEFINIDA, COMPOSICAO, ALIAS, SEM_DEFINICAO = "DEFINIDA", "COMPOSICAO", "ALIAS", 
 INFERIDA = "INFERIDA"
 STATUS = (DEFINIDA, COMPOSICAO, ALIAS, SEM_DEFINICAO, INFERIDA)
 AVISO_SEM_DEFINICAO = "⚠ condição sem definição no manual"
-AVISO_INFERIDA = "⚠ leitura inferida dos nomes do corpus; o manual não define esta condição"
+AVISO_INFERIDA = "⚠ interpretação inferida de `sem venda ou prospects` (manual p.26 [22]) e dos nomes dos blocos; não confirmada"
 AVISO_RAMO_TEXTO = "⚠ o manual descreve IDs de ramo de atividade; os valores de texto foram preservados"
 
 
@@ -235,10 +235,10 @@ def _entradas() -> list[Entrada]:
         Entrada("data da rota na semana", "data da rota na semana", SEM_DEFINICAO, (),
                 "A forma literal não é definida no manual; não extrapolar a linha de mês anterior."),
         # --- sem definição no manual
-        Entrada("sem venda", "clientes que ainda não compraram", INFERIDA, (), "Leitura dos nomes; não equivale formalmente a prospect."),
-        Entrada("sem vendas", "clientes que ainda não compraram", INFERIDA, (), "Leitura dos nomes; não equivale formalmente a prospect."),
-        Entrada("sem venda do vendedor", "clientes que ainda não compraram com o vendedor", INFERIDA),
-        Entrada("sem venda da empresa", "clientes que ainda não compraram com a empresa", INFERIDA),
+        Entrada("sem venda", "Clientes sem venda (provavelmente nunca compraram)", INFERIDA, (), "Leitura inferida da expressão do manual e dos nomes; não equivale formalmente a prospect."),
+        Entrada("sem vendas", "Clientes sem venda (provavelmente nunca compraram)", INFERIDA, (), "Leitura inferida da expressão do manual e dos nomes; não equivale formalmente a prospect."),
+        Entrada("sem venda do vendedor", "Clientes sem venda com o vendedor (provavelmente nunca compraram)", INFERIDA),
+        Entrada("sem venda da empresa", "Clientes sem venda com a empresa (provavelmente nunca compraram)", INFERIDA),
     ]
     entradas.append(
         replace(
