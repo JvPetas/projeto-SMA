@@ -175,6 +175,10 @@ def empacotar(raiz: Path, *, modelo: Path | None = None) -> dict:
     if contexto["tem_polimento"] and relatorio_polimento.is_file():
         contexto.update(dados_readme(json.loads(relatorio_polimento.read_text(encoding="utf-8"))))
         contexto["tem_polimento"] = True
+    notas_gabarito = processado / "notas_gabarito.md"
+    contexto["notas_gabarito"] = (
+        notas_gabarito.read_text(encoding="utf-8").strip() if notas_gabarito.is_file() else ""
+    )
     readme = preencher_readme(modelo_texto, index, dados_adicionais=contexto)
     destino, zip_final = processado / "entrega1", processado / "entrega1.zip"
     _dentro(raiz, processado)

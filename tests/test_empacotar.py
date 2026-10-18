@@ -179,3 +179,32 @@ def test_condicional_polimento_depende_da_pasta_e_varredura_inclui_diff(tmp_path
         with pytest.raises(ValueError, match="termo proibido"):
             pacote.empacotar(raiz)
         p.write_bytes(antes)
+
+
+@pytest.mark.parametrize("conteudo", [None, " \n\t", "- Divergência de referência sintética.\n\n- Segundo item."])
+def test_notas_gabarito_opcionais_no_readme(tmp_path, conteudo):
+    raiz, _ = preparar(tmp_path)
+    # Usa o modelo real, sem introduzir texto dos exemplos de referência no teste.
+    modelo = raiz / "docs/entrega1_README.template.md"
+    modelo.write_bytes((Path(__file__).resolve().parents[1] / "docs/entrega1_README.template.md").read_bytes())
+    (raiz / "pyproject.toml").write_text('[project]\nrequires-python = ">=3.10"\n', encoding="utf-8")
+    notas = raiz / "data/processed/notas_gabarito.md"
+    if conteudo is not None:
+        notas.write_text(conteudo, encoding="utf-8")
+    modelo_antes = modelo.read_bytes()
+    resultado = pacote.empacotar(raiz)
+    titulo = "## Divergências entre a descrição e o código nos exemplos de referência"
+    esperado = bool(conteudo and conteudo.strip())
+    assert resultado["readme"].count(titulo) == int(esperado)
+    assert "{notas_gabarito}" not in resultado["readme"]
+    if esperado:
+        assert conteudo.strip() in resultado["readme"]
+    assert modelo.read_bytes() == modelo_antes
+    if conteudo is not None:
+        assert notas.read_text(encoding="utf-8") == conteudo
+    with zipfile.ZipFile(resultado["zip"]) as z:
+        assert z.read("README.md").decode("utf-8").splitlines() == resultado["readme"].splitlines()
+    if esperado:
+        notas.unlink()
+        sem_notas = pacote.empacotar(raiz)["readme"]
+        assert titulo not in sem_notas and conteudo.strip() not in sem_notas

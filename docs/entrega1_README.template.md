@@ -44,11 +44,17 @@ Explicação gerada para um dos exemplos do professor:
 - O manual não define se cliente sem nenhuma compra é alcançado por `fora da recencia`. Quando um bloco de prospects vem depois de um bloco assim, há aviso.
 - {n_sem_entrada} blocos têm condição sem definição no manual; o texto original é mantido com aviso.
 - Arquivos com problema de sintaxe têm aviso no topo: parêntese aberto e bloco sem frequência em um arquivo (a tabela pode estar incompleta), `version 1.0` ausente, aspa solta e caractere de controle em outros.
-- Requisitos que os exemplos descrevem mas o GOBR não representa (capacidade de 35 clientes por dia no Maxlub; "agendar inadimplentes" no V1 Vidros) ficam fora da tabela.
+- A tabela descreve os blocos do código; requisitos exclusivos da descrição humana não criam linhas adicionais.
+
+<!-- IF notas_gabarito -->
+## Divergências entre a descrição e o código nos exemplos de referência
+
+{notas_gabarito}
+<!-- ENDIF -->
 
 ## Verificações
 - Checagens automáticas por arquivo: número de linhas da tabela igual ao número de blocos; frequência escrita igual à frequência lida do código (nova leitura independente); todo número citado existe no código. Resultado: {n_falhas} falhas em {n_arquivos} arquivos.
-- Comparação com os três exemplos do professor (Infinitto, Maxlub, V1 Vidros): faixas e frequências coincidem. As diferenças encontradas são bloqueios presentes no código mas ausentes da descrição, o fallback do Maxlub e os dois requisitos citados acima.
+- Comparação com os exemplos do professor por faixa e frequência; divergências documentadas são reportadas separadamente.
 - Suíte de testes automatizados (pytest).
 
 ## Como reproduzir
