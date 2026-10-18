@@ -4,8 +4,8 @@ Chave = átomo normalizado com N no lugar de números e S no lugar de textos ent
 (`igual("a","b","c")` vira `igual(S)`; `N dia` vira `N dias`). O modelo usa `{N}` (números, na
 ordem em que aparecem) e `{S}` (textos entre aspas, separados por vírgula).
 
-Nada além do manual: cada entrada aponta as linhas do manual em que se apoia (página do PDF e
-página impressa, entre colchetes na documentação). Átomo sem entrada sai como
+Entradas documentadas apontam as páginas do manual; leituras dos nomes do corpus têm
+status INFERIDA e aviso explícito, sem fonte documental inventada. Átomo sem entrada sai como
 `[sem tradução: <literal>]`.
 
 Status:
@@ -14,6 +14,7 @@ Status:
                  com a empresa/com o vendedor, igual/diferente...)
   ALIAS          variante de escrita do corpus de outra chave
   SEM_DEFINICAO  o manual não define; o literal sai sem expandir, com um aviso
+  INFERIDA       leitura dos nomes do corpus, sem afirmar equivalência ou definição do manual
 """
 from __future__ import annotations
 
@@ -24,8 +25,11 @@ from ..parsing.models import Condicao
 from .atomos import separar_atomos
 
 DEFINIDA, COMPOSICAO, ALIAS, SEM_DEFINICAO = "DEFINIDA", "COMPOSICAO", "ALIAS", "SEM_DEFINICAO"
-STATUS = (DEFINIDA, COMPOSICAO, ALIAS, SEM_DEFINICAO)
+INFERIDA = "INFERIDA"
+STATUS = (DEFINIDA, COMPOSICAO, ALIAS, SEM_DEFINICAO, INFERIDA)
 AVISO_SEM_DEFINICAO = "⚠ condição sem definição no manual"
+AVISO_INFERIDA = "⚠ leitura inferida dos nomes do corpus; o manual não define esta condição"
+AVISO_RAMO_TEXTO = "⚠ o manual descreve IDs de ramo de atividade; os valores de texto foram preservados"
 
 
 @dataclass(frozen=True)
@@ -50,8 +54,9 @@ class Traducao:
     texto: str
     chave: str | None  # None quando o átomo não está no glossário
     status: str | None
-    traduzido: bool  # True só para DEFINIDA, COMPOSICAO e ALIAS
+    traduzido: bool  # inclui INFERIDA, sempre acompanhada de aviso
     observacao: str | None = None
+    ramo_atividade_texto: bool = False
 
 
 def F(pdf: int, impressa: int, trecho: str) -> Fonte:
@@ -105,6 +110,8 @@ def _entradas() -> list[Entrada]:
                 (F(26, 22, "Clientes sem compra com nenhum vendedor da empresa"),)),
         Entrada("inatividade de N dias", "clientes sem compra há pelo menos {N} dias", d,
                 (F(26, 22, "Clientes sem compra há pelo menos N dias («tempo»)"),)),
+        Entrada("inatividade global de N dias", "clientes sem compra com a empresa toda há pelo menos {N} dias", d,
+                (F(26, 22, "inatividade global de <<N>> dias: Clientes sem compra com a empresa toda há pelo menos N dias («tempo»)"),)),
         Entrada("unica compra com a empresa", "clientes que só compraram uma única vez com a empresa", d,
                 (F(26, 22, "Clientes que só compraram uma única vez com a empresa"),)),
         Entrada("unica compra com o vendedor", "clientes que só compraram uma única vez com o vendedor", d,
@@ -114,6 +121,9 @@ def _entradas() -> list[Entrada]:
                  F(37, 33, "<<N>> dias: O tempo é uma regra que referencia um período"))),
         Entrada("tem venda da empresa entre N dias e N dias", "clientes que compraram de qualquer vendedor entre {N} e {N} dias", d,
                 (F(27, 23, "tem venda da empresa <<condicional de tempo>>: Clientes que compraram de qualquer vendedor no período especificado"), _ENTRE_TEMPO)),
+        Entrada("tem venda em N dias", "o cliente teve venda nos últimos {N} dias", d,
+                (F(54, 50, "tem venda em <<N>> dias: O cliente teve venda nos últimos N dias"),),
+                "Definição da seção 8.4.1, de gatilhos de alertas; não comprova validade sintática em outros contextos."),
         Entrada("nao tem venda em N dias", "clientes sem venda de nenhum vendedor do mesmo grupo em {N} dias", c,
                 (_NAO_TEM_VENDA, _EM_N_DIAS)),
         Entrada("nao tem venda da empresa no ano", "clientes que não têm venda da empresa no ano atual", c,
@@ -132,11 +142,11 @@ def _entradas() -> list[Entrada]:
         Entrada("recencia de positivacao do vendedor em N dias", "última positivação nos últimos {N} dias " + _VEND_CART, c, _REC_VEND + (_EM_N_DIAS,)),
         Entrada("recencia de positivacao do vendedor entre N dias e N dias", "última positivação entre {N} e {N} dias " + _VEND_CART, c, _REC_VEND + (_ENTRE_TEMPO,)),
         Entrada("fora da recencia de positivacao em N dias", "última positivação fora dos últimos {N} dias, " + _GRUPO, c, _REC_BASE_FORA + (_EM_N_DIAS,)),
-        Entrada("fora da recencia de positivacao entre N dias e N dias", "última positivação fora do intervalo entre {N} e {N} dias, " + _GRUPO, c, _REC_BASE_FORA + (_ENTRE_TEMPO,)),
+        Entrada("fora da recencia de positivacao entre N dias e N dias", "última compra fora do intervalo de {N} a {N} dias, " + _GRUPO, c, _REC_BASE_FORA + (_ENTRE_TEMPO,)),
         Entrada("fora da recencia de positivacao global em N dias", "última positivação fora dos últimos {N} dias, " + _EMPRESA, c, (_FORA_GLOBAL_VISITA, _NOTA_VISITA_POSIT, _EM_N_DIAS)),
-        Entrada("fora da recencia de positivacao global entre N dias e N dias", "última positivação fora do intervalo entre {N} e {N} dias, " + _EMPRESA, c, (_FORA_GLOBAL_VISITA, _NOTA_VISITA_POSIT, _ENTRE_TEMPO)),
+        Entrada("fora da recencia de positivacao global entre N dias e N dias", "última compra fora do intervalo de {N} a {N} dias, " + _EMPRESA, c, (_FORA_GLOBAL_VISITA, _NOTA_VISITA_POSIT, _ENTRE_TEMPO)),
         Entrada("fora da recencia de positivacao do vendedor em N dias", "última positivação fora dos últimos {N} dias " + _VEND_CART, d, (_FORA_POSIT_VENDEDOR, _EM_N_DIAS)),
-        Entrada("fora da recencia de positivacao do vendedor entre N dias e N dias", "última positivação fora do intervalo entre {N} e {N} dias " + _VEND_CART, d, (_FORA_POSIT_VENDEDOR, _ENTRE_TEMPO)),
+        Entrada("fora da recencia de positivacao do vendedor entre N dias e N dias", "última compra fora do intervalo de {N} a {N} dias " + _VEND_CART, d, (_FORA_POSIT_VENDEDOR, _ENTRE_TEMPO)),
         # --- 6.3 financeiros
         Entrada("inadimplentes", "clientes com pendências financeiras em aberto", d, (F(28, 24, "Clientes com pendências financeiras em aberto"),)),
         Entrada("adimplentes", "clientes sem pendências financeiras em aberto", d, (F(28, 24, "Clientes sem pendências financeiras em aberto"),)),
@@ -182,12 +192,30 @@ def _entradas() -> list[Entrada]:
         Entrada("curva a com a empresa", "clientes da curva A de faturamento com a empresa", d, (F(32, 28, "Clientes da curva A de faturamento com a empresa"),)),
         Entrada("curva b com a empresa", "clientes da curva B de faturamento com a empresa", d, (F(32, 28, "Clientes da curva B de faturamento com a empresa"),)),
         Entrada("curva c com a empresa", "clientes da curva C de faturamento com a empresa", d, (F(32, 28, "Clientes da curva C de faturamento com a empresa"),)),
+        Entrada("curva a com o vendedor", "clientes da curva A com o vendedor específico", d,
+                (F(32, 28, "curva A com o vendedor: Clientes da curva A com o vendedor específico"),)),
+        Entrada("curva b com o vendedor", "clientes da curva B de faturamento com o vendedor", c,
+                (F(32, 28, "Clientes da curva B de faturamento com a empresa"), _NOTA_EMPRESA_VENDEDOR)),
+        Entrada("curva c com o vendedor", "clientes da curva C de faturamento com o vendedor", c,
+                (F(32, 28, "Clientes da curva C de faturamento com a empresa"), _NOTA_EMPRESA_VENDEDOR)),
         Entrada("no ciclo de vida prospect com o vendedor", "cliente prospect no ciclo de vida do vendedor", d, (F(33, 29, "Cliente prospect no ciclo de vida do vendedor"),)),
         Entrada("no ciclo de vida prospect com a empresa", "cliente prospect no ciclo de vida da empresa", c,
                 (F(33, 29, "no ciclo de vida prospect com o vendedor: Cliente prospect no ciclo de vida do vendedor"), _NOTA_EMPRESA_VENDEDOR)),
         Entrada("no ciclo de vida ativo com a empresa", "cliente ativo no ciclo de vida da empresa, fez alguma compra", c,
                 (F(33, 29, "no ciclo de vida ativo com o vendedor: Cliente ativo no ciclo de vida do vendedor, fez alguma compra"), _NOTA_EMPRESA_VENDEDOR)),
+        Entrada("no ciclo de vida ativo com o vendedor", "cliente ativo no ciclo de vida do vendedor, fez alguma compra", d,
+                (F(33, 29, "Cliente ativo no ciclo de vida do vendedor, fez alguma compra"),)),
         Entrada("no ciclo de vida inativo com a empresa", "cliente inativo no ciclo de vida da empresa", d, (F(33, 29, "Cliente inativo no ciclo de vida da empresa"),)),
+        Entrada("no ciclo de vida inativo com o vendedor", "cliente inativo no ciclo de vida do vendedor", c,
+                (F(33, 29, "Cliente inativo no ciclo de vida da empresa"), _NOTA_EMPRESA_VENDEDOR)),
+        Entrada("no ciclo de vida ativado com o vendedor", "cliente que fez uma compra com o vendedor quando era prospect", d,
+                (F(33, 29, "Cliente que fez uma compra com o vendedor quando era prospect"),)),
+        Entrada("no ciclo de vida ativado com a empresa", "cliente que fez uma compra com a empresa quando era prospect", c,
+                (F(33, 29, "Cliente que fez uma compra com o vendedor quando era prospect"), _NOTA_EMPRESA_VENDEDOR)),
+        Entrada("no ciclo de vida reativado com a empresa", "cliente que fez uma compra com qualquer vendedor quando estava inativo", d,
+                (F(33, 29, "Cliente que fez uma compra com qualquer vendedor quando estava inativo"),)),
+        Entrada("no ciclo de vida reativado com o vendedor", "cliente que fez uma compra com o vendedor quando estava inativo", c,
+                (F(33, 29, "Cliente que fez uma compra com qualquer vendedor quando estava inativo"), _NOTA_EMPRESA_VENDEDOR)),
         # --- 6.8 frequência histórica
         Entrada("frequencia historica menor que N dias", "frequência histórica do cliente menor que {N} dias", c,
                 (F(33, 29, "frequencia historica menor que <<N>> dias ou indefinida: A frequência histórica do cliente é menor que N dias ou não foi possível ser calculada"),
@@ -204,15 +232,13 @@ def _entradas() -> list[Entrada]:
                 (F(36, 32, "cadastrado faz 90 dias: Clientes que foram cadastrados no ERP em no mínimo 90 dias («tempo»)"),)),
         Entrada("cadastrado a partir do dia 'N-N-N'", "clientes cadastrados no ERP após o dia {N}-{N}-{N}", d,
                 (F(36, 32, "cadastrado a partir do dia '2026-02-10': Clientes que foram cadastrados após um dia especificado"),)),
-        Entrada("data da rota na semana", "clientes com data de rota na semana atual", c,
-                (F(36, 32, "data da rota no mês anterior: Clientes cuja data de rota compreendem somente o mês anterior"), _NA_SEMANA)),
+        Entrada("data da rota na semana", "data da rota na semana", SEM_DEFINICAO, (),
+                "A forma literal não é definida no manual; não extrapolar a linha de mês anterior."),
         # --- sem definição no manual
-        Entrada("sem venda", "sem venda", SEM_DEFINICAO, (),
-                "114 linhas; 52 na regra padrão do Govendas; em 0 de 97 arquivos coexiste com `no ciclo de vida prospect com a empresa` "
-                "no mesmo escopo. O manual só traz `sem venda ou prospects` (p.26 [22]): forma diferente, não assumida."),
-        Entrada("sem vendas", "sem vendas", SEM_DEFINICAO, (), "O manual não tem `sem vendas`. Os blocos do corpus se chamam \"clientes sem venda\"."),
-        Entrada("sem venda do vendedor", "sem venda do vendedor", SEM_DEFINICAO, (),
-                "O manual não tem `sem venda do vendedor`. Os blocos do corpus se chamam \"Primeira compra\", \"Cliente potencial\"."),
+        Entrada("sem venda", "clientes que ainda não compraram", INFERIDA, (), "Leitura dos nomes; não equivale formalmente a prospect."),
+        Entrada("sem vendas", "clientes que ainda não compraram", INFERIDA, (), "Leitura dos nomes; não equivale formalmente a prospect."),
+        Entrada("sem venda do vendedor", "clientes que ainda não compraram com o vendedor", INFERIDA),
+        Entrada("sem venda da empresa", "clientes que ainda não compraram com a empresa", INFERIDA),
     ]
     entradas.append(
         replace(
@@ -220,8 +246,7 @@ def _entradas() -> list[Entrada]:
             chave="e o cliente filial",
             status=ALIAS,
             alias_de="cliente filial",
-            nota="12 blocos \"Não agendar filiais\" (regra_116, 129, 145, 172, 175, 180, 201, 206, 208, 209, 210, 244); "
-            "5 estão escritos com acento (`quando é o cliente filial`): o verbo \"é\" perde o acento na normalização.",
+            nota="12 blocos \"Não agendar filiais\"; a variante com o verbo \"é\" perde o acento na normalização.",
         )
     )
     return entradas
@@ -249,12 +274,17 @@ def _preencher(modelo: str, numeros: list[str], textos: list[str]) -> str:
 def traduzir_atomo(atomo: str, textos: list[str] | None = None) -> Traducao:
     """Traduz um átomo normalizado. `textos` permite passar os textos entre aspas com a caixa original."""
     chave, numeros, textos_do_atomo = decompor(atomo)
+    valores = textos if textos is not None else textos_do_atomo
+    ramo_texto = atomo.startswith("ramo de atividade ") and any(not v.isdigit() for v in valores)
     entrada = GLOSSARIO.get(chave)
     if entrada is None:
-        return Traducao(f"[sem tradução: {atomo}]", None, None, False)
+        return Traducao(f"[sem tradução: {atomo}]", None, None, False, ramo_atividade_texto=ramo_texto)
     if entrada.status == SEM_DEFINICAO:
         return Traducao(atomo, chave, SEM_DEFINICAO, False, AVISO_SEM_DEFINICAO)
-    return Traducao(_preencher(entrada.modelo, numeros, textos or textos_do_atomo), chave, entrada.status, True)
+    observacao = AVISO_INFERIDA if entrada.status == INFERIDA else None
+    if chave.startswith("ramo de atividade ") and any(not v.isdigit() for v in valores):
+        observacao = AVISO_RAMO_TEXTO
+    return Traducao(_preencher(entrada.modelo, numeros, valores), chave, entrada.status, True, observacao, ramo_texto)
 
 
 def traduzir_condicao(condicao: Condicao) -> list[Traducao]:

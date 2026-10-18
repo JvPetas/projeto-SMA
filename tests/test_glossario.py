@@ -12,6 +12,7 @@ from gobr_agent.explain.glossario import (
     COMPOSICAO,
     DEFINIDA,
     GLOSSARIO,
+    INFERIDA,
     SEM_DEFINICAO,
     STATUS,
     decompor,
@@ -53,11 +54,11 @@ CASOS = [
     ("recencia de positivacao do vendedor em 30 dias", "regra_135:58", "recencia de positivacao do vendedor em N dias", COMPOSICAO, f"última positivação nos últimos 30 dias {VEND}"),
     ("recencia de positivacao do vendedor entre 11 dias e 59 dias", "regra_132:35", "recencia de positivacao do vendedor entre N dias e N dias", COMPOSICAO, f"última positivação entre 11 e 59 dias {VEND}"),
     ("fora da recencia de positivacao em 30 dias", "regra_049:33", "fora da recencia de positivacao em N dias", COMPOSICAO, f"última positivação fora dos últimos 30 dias, {GRUPO}"),
-    ("fora da recencia de positivacao entre 8 dias e 15 dias", "regra_165:52", "fora da recencia de positivacao entre N dias e N dias", COMPOSICAO, f"última positivação fora do intervalo entre 8 e 15 dias, {GRUPO}"),
+    ("fora da recencia de positivacao entre 8 dias e 15 dias", "regra_165:52", "fora da recencia de positivacao entre N dias e N dias", COMPOSICAO, f"última compra fora do intervalo de 8 a 15 dias, {GRUPO}"),
     ("fora da recencia de positivacao global em 90 dias", "regra_003:66", "fora da recencia de positivacao global em N dias", COMPOSICAO, f"última positivação fora dos últimos 90 dias, {EMPRESA}"),
-    ("fora da recencia de positivacao global entre 15 dias e 90 dias", "regra_003:61", "fora da recencia de positivacao global entre N dias e N dias", COMPOSICAO, f"última positivação fora do intervalo entre 15 e 90 dias, {EMPRESA}"),
+    ("fora da recencia de positivacao global entre 15 dias e 90 dias", "regra_003:61", "fora da recencia de positivacao global entre N dias e N dias", COMPOSICAO, f"última compra fora do intervalo de 15 a 90 dias, {EMPRESA}"),
     ("fora da recencia de positivacao do vendedor em 90 dias", "regra_108:51", "fora da recencia de positivacao do vendedor em N dias", DEFINIDA, f"última positivação fora dos últimos 90 dias {VEND}"),
-    ("fora da recencia de positivacao do vendedor entre 60 dias e 89 dias", "regra_108:36", "fora da recencia de positivacao do vendedor entre N dias e N dias", DEFINIDA, f"última positivação fora do intervalo entre 60 e 89 dias {VEND}"),
+    ("fora da recencia de positivacao do vendedor entre 60 dias e 89 dias", "regra_108:36", "fora da recencia de positivacao do vendedor entre N dias e N dias", DEFINIDA, f"última compra fora do intervalo de 60 a 89 dias {VEND}"),
     ("inadimplentes", "regra_008:29", "inadimplentes", DEFINIDA, "clientes com pendências financeiras em aberto"),
     ("adimplentes", "regra_008:19", "adimplentes", DEFINIDA, "clientes sem pendências financeiras em aberto"),
     ("nao tem credito", "regra_131:23", "nao tem credito", DEFINIDA, "clientes sem crédito disponível"),
@@ -96,13 +97,25 @@ CASOS = [
     ('nao contido na segmentacao("ext_niteroi_rio2_para_tmk1","ext_lagos_norte_para_tmk2")', "regra_128:244", "nao contido na segmentacao(S)", DEFINIDA, "cliente não pertence às segmentações: ext_niteroi_rio2_para_tmk1, ext_lagos_norte_para_tmk2"),
     ("cadastrado faz 60 dias", "regra_003:39", "cadastrado faz N dias", DEFINIDA, "clientes cadastrados no ERP há no mínimo 60 dias"),
     ("cadastrado a partir do dia '2023-07-18'", "regra_147:26", "cadastrado a partir do dia 'N-N-N'", DEFINIDA, "clientes cadastrados no ERP após o dia 2023-07-18"),
-    ("data da rota na semana", "regra_173:26", "data da rota na semana", COMPOSICAO, "clientes com data de rota na semana atual"),
+    ("data da rota na semana", "regra_173:26", "data da rota na semana", SEM_DEFINICAO, "data da rota na semana"),
     # sem definição no manual: o literal sai sem expandir
-    ("sem venda", "regra_001:21", "sem venda", SEM_DEFINICAO, "sem venda"),
-    ("sem vendas", "regra_023:23", "sem vendas", SEM_DEFINICAO, "sem vendas"),
-    ("sem venda do vendedor", "regra_140:58", "sem venda do vendedor", SEM_DEFINICAO, "sem venda do vendedor"),
+    ("sem venda", "regra_001:21", "sem venda", INFERIDA, "clientes que ainda não compraram"),
+    ("sem vendas", "regra_023:23", "sem vendas", INFERIDA, "clientes que ainda não compraram"),
+    ("sem venda do vendedor", "regra_140:58", "sem venda do vendedor", INFERIDA, "clientes que ainda não compraram com o vendedor"),
+    ("sem venda da empresa", "regra_226:14", "sem venda da empresa", INFERIDA, "clientes que ainda não compraram com a empresa"),
     # alias
     ("e o cliente filial", "regra_116:17", "e o cliente filial", ALIAS, "o registro é uma filial"),
+    ("inatividade global de 90 dias", "manual PDF26/22", "inatividade global de N dias", DEFINIDA, "clientes sem compra com a empresa toda há pelo menos 90 dias"),
+    ("tem venda em 60 dias", "manual PDF54/50", "tem venda em N dias", DEFINIDA, "o cliente teve venda nos últimos 60 dias"),
+    ("curva a com o vendedor", "manual PDF32/28", "curva a com o vendedor", DEFINIDA, "clientes da curva A com o vendedor específico"),
+    ("curva b com o vendedor", "manual PDF32/28 e 33/29", "curva b com o vendedor", COMPOSICAO, "clientes da curva B de faturamento com o vendedor"),
+    ("curva c com o vendedor", "manual PDF32/28 e 33/29", "curva c com o vendedor", COMPOSICAO, "clientes da curva C de faturamento com o vendedor"),
+    ("no ciclo de vida ativo com o vendedor", "manual PDF33/29", "no ciclo de vida ativo com o vendedor", DEFINIDA, "cliente ativo no ciclo de vida do vendedor, fez alguma compra"),
+    ("no ciclo de vida inativo com o vendedor", "manual PDF33/29", "no ciclo de vida inativo com o vendedor", COMPOSICAO, "cliente inativo no ciclo de vida do vendedor"),
+    ("no ciclo de vida ativado com o vendedor", "manual PDF33/29", "no ciclo de vida ativado com o vendedor", DEFINIDA, "cliente que fez uma compra com o vendedor quando era prospect"),
+    ("no ciclo de vida ativado com a empresa", "manual PDF33/29", "no ciclo de vida ativado com a empresa", COMPOSICAO, "cliente que fez uma compra com a empresa quando era prospect"),
+    ("no ciclo de vida reativado com a empresa", "manual PDF33/29", "no ciclo de vida reativado com a empresa", DEFINIDA, "cliente que fez uma compra com qualquer vendedor quando estava inativo"),
+    ("no ciclo de vida reativado com o vendedor", "manual PDF33/29", "no ciclo de vida reativado com o vendedor", COMPOSICAO, "cliente que fez uma compra com o vendedor quando estava inativo"),
 ]
 
 
@@ -118,7 +131,7 @@ def test_todas_as_entradas_do_glossario_tem_caso():
 
 
 def test_sem_definicao_tem_aviso_e_nao_expande():
-    for atomo in ("sem venda", "sem vendas", "sem venda do vendedor"):
+    for atomo in ("data da rota na semana",):
         t = traduzir_atomo(atomo)
         assert t.observacao == AVISO_SEM_DEFINICAO == "⚠ condição sem definição no manual"
         assert t.texto == atomo and not t.traduzido
@@ -191,7 +204,7 @@ def test_integridade_das_entradas(entrada):
     if entrada.status == ALIAS:
         assert entrada.alias_de in GLOSSARIO
     for fonte in entrada.fontes:
-        assert 22 <= fonte.pdf <= 41 and fonte.impressa == fonte.pdf - 4 and fonte.trecho
+        assert 22 <= fonte.pdf <= 62 and fonte.impressa == fonte.pdf - 4 and fonte.trecho
 
 
 def test_numero_de_placeholders_bate_com_a_chave():
@@ -222,7 +235,7 @@ def test_cobertura_nos_249_arquivos(capsys):
                         nao_traduzidos[t.texto.removeprefix("[sem tradução: ").removesuffix("]")] += 1
     n = total["atomos"]
     com_entrada = n - por_status["SEM_ENTRADA"]
-    traduzidos = por_status[DEFINIDA] + por_status[COMPOSICAO] + por_status[ALIAS]
+    traduzidos = por_status[DEFINIDA] + por_status[COMPOSICAO] + por_status[ALIAS] + por_status[INFERIDA]
     with capsys.disabled():
         print(f"\n[glossário] {n} átomos: {traduzidos} traduzidos ({100 * traduzidos / n:.1f}%), "
               f"{por_status[SEM_DEFINICAO]} sem definição no manual ({100 * por_status[SEM_DEFINICAO] / n:.1f}%), "

@@ -109,8 +109,8 @@ def test_cadeia_basica_estreita_cada_bloco_pelo_anterior():
     assert (c.efetivo, c.texto_efetivo) == (((60, 90),), "entre 60 e 90 dias")
     assert c.literal == "recencia de positivacao em 90 dias"
     assert d.catch_all and d.texto_catch_all == "mais de 90 dias" and d.lacunas == ()
-    assert "pode haver clientes já tratados pela regra Baixados" in b.notas
-    assert "pode haver clientes já tratados pela regra Baixados" in d.notas
+    assert b.bloqueios_anteriores and d.bloqueios_anteriores
+    assert not b.antecedentes and not d.antecedentes
 
 
 def test_global_e_sem_global_formam_uma_cadeia_com_aviso():
@@ -145,7 +145,8 @@ def test_bloco_com_outra_condicao_nao_entra_na_uniao_e_gera_nota():
     )
     assert not adimplentes.puro
     assert c.efetivo == ((30, 90),)  # o bloco impuro não consumiu (30, 60)
-    assert "pode haver clientes já tratados pelas regras Prospects; Com adimplentes" in c.notas
+    assert "pode haver clientes já tratados pela regra Com adimplentes" in c.notas
+    assert c.antecedentes == ("Com adimplentes",)
 
 
 def test_filtro_temporal_torna_o_bloco_impuro():
@@ -176,7 +177,7 @@ def test_cadeias_de_tipos_diferentes_sao_independentes():
     )
     assert v.efetivo == ((0, 45),) and pv.efetivo == ((0, 20),)
     assert p2.efetivo == ((30, 60),)
-    assert "pode haver clientes já tratados pela regra P" in v.notas
+    assert not v.antecedentes
 
 
 def test_catch_all_com_lacuna_nao_afirma_nada():
