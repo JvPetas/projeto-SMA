@@ -14,7 +14,6 @@ venv/
 # Segredos
 .env
 .env.*
-!.env.example
 
 # Índices e caches
 data/vectorstore/*
